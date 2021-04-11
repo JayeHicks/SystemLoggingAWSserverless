@@ -74,7 +74,7 @@ Set up two DynamoDB tables, one for informational messages and one for error mes
 
 ## Example use of sys_log() and send_alerts()
 The following can be used as a reference for canonical use of the sys_log() and send_alerts() classes.
-'''
+```
 """
 Jaye Hicks
 Obligatory legal disclaimer:
@@ -203,4 +203,4 @@ def example():
     #Option B: separate print() statement for each issue
     #for issue in sl.init_issues:
     #  print('sys_log init issue arose: ' + issue)
-    '''
+    ```
