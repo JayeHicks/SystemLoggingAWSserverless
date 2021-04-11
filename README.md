@@ -1,6 +1,3 @@
-# SystemLoggingAWSserverless
-System logging facility for AWS Lambda functions written in Python.  With a minimal footprint and message storage in DynamoDB, ideal for AWS-based serverless applications.
-
 # Introduction
 On occasion I am commissioned by a client to extend a POC into a hardened, productized solution.  To meet some of the requisite operational support functionality, I  developed this custom system logging framework for AWS-based solutions.  My top design goals included a small / focused footprint and the storage of log messages in DynamoDB.  This system logging solution can be used to coordinate system logging across an entire serverless application or across any collection of Python modules that you care to instrument.
 
@@ -10,14 +7,14 @@ At a high-level, after you have created a couple of DynamoDB tables, all that is
 This system logging solution partitions messages into two broad categories, each utilizing a separate DynamoDB table.  System logging messages are presumed to range along a severity continuum from innocuous, informational messages all the way to catastrophic failure.  Within each of the two broad categories, an arbitrary number of sub categories can introduced to represent the progression along the severity continuum.
 
 * Informational Messages
-  * Messages intended to range from “informative” all the way to up to “warning”
+  * Messages intended to conceptually range from “informative” all the way to up to “warning”
   * Relative high volume when compared to error messages
     * sys_log() provides automated data lifecycle management for these messages, which you can customize
   * sys_log provides default sub categories
       * “INFO” and “WARN” 
       * You can customize the name, number, and meaning of subcategories
 * Error Messages 
-  * Messages intended to range from “error” to “catastrophic”
+  * Messages intended to conceptually range from “error” to “catastrophic”
   * Relatively low volume when compared to informational messages
     * Manual data lifecycle management required for these messages; you don’t want these messages disappearing until you have concluded root cause analysis
   * sys_log() provides default sub categories
@@ -29,20 +26,21 @@ Within the Python module using sys_log() to store a system log message you must 
   * Required
   * A unique identifier enabling you to pinpoint, within the Python module, where a given system logging message was generated.  I find that unique, positive integers work well
   * Absolutely essential when submitting certain types of system log messages
-    * The system log messages submitted does not have a string value for Message Text.  The only thing supplied is a Python run-time exception object which makes it hard to figure out exactly which specific sys_log() call, that only supplies a Python run-time exception object, generated the message
-    * There are multiple system log message submissions that supply an identical, a very similar, Message Text (or Python run-time exception object)
-    * The system log messages submitted uses a variable, instead of a literal string, to pass along a value for Message Text.  In this case you wont a literal string in the source code; the error message will be contained by the variable (e.g., importing errors/issues from an external module such as send_alerts)
-  * Take great care not to duplicate these identifiers that you use for the locator value.  Any modern text editing tool can help you easily determine if you have any duplicate locators in your module.
+    * The system log messages submitted does not contain a literal string value for Message Text.  The only thing supplied is a Python run-time exception object which makes it hard to figure out exactly which specific sys_log() call generated the message
+    * There are multiple system log message submissions that supply an identical, a very similar, literal text string for Message Text
+    * Two or more points in the source code can generate a system log message submission with the exact same Python run-time exception.
+    * The source code that submits a system log message a variable, instead of a literal string, to pass along a string value for Message Text.  In this case you won’t see any literal string in the source code corresponding to the log message in the database
+  * Take great care not to duplicate the values you use for individual the Locator parameter in a system logging submission.  Any modern text editing tool can help you easily determine if you have any duplicate locators in your module.
   * I suggest using a special identifier notation in cases where error messages originate outside of the immediate module (e.g., from a send_alerts() object created within the Python module).
 * Message Level
   * Required
-  * The severity level for the message.  The default severity continuum is “INFO”, “WARN”, “ALARM”, “ERROR.”
+  * The severity level for the message.  The default severity continuum is “INFO”, “WARN”, “ALARM”, and “ERROR”
   * You are free to completely customize the number, name, and meaning of sub categories for the system logging message categories
 * Message Text
   * Can be literal text string, an empty string, None, or a variable containing a string.
   * Will be concatenated in front of the textual representation of the Python run-time exception (if one is supplied)
 * Python Run-Time Exception Object
-  * Can by a run-time Python exception object, empty string, or None
+  * Can be a run-time Python exception object, empty string, or None
   * Textual representation of the Python run-time exception, if supplied, will be concatenated after the Message Text parameter (if supplied).
 
 In order to use sys_log() within a Python module, the following must occur and occur in the following order.
@@ -53,11 +51,11 @@ In order to use sys_log() within a Python module, the following must occur and o
   * The name of the informational messages DynamoDB table
   * The name of the error messages DynamoDB table
   * Optionally you may choose to specify
-    * A time zone offset from UTC.  For US Standard Time you would supply 5 or 6.  sys_log() does not automatically adjust to US daylight savings time.  If you’d like sys_log time stamps to account for daylight savings time you can manually switch alternate offset values twice a year or you can add complexity to the sys_log() class.
+    * A time zone offset from UTC.  For US Standard Time you would supply 5 or 6.  sys_log() does not automatically adjust for US daylight savings time time changes.  If you’d like sys_log time stamps to account for daylight savings time you can either manually alternate offset values twice a year or you can add complexity to the sys_log() class. I have yet to do a cost/benefit analysis that leads me to introduce the complexity.
     * A time to live value (in seconds) for informational messages.  The default value is two months.
 * In the function that serves as the entry point for the Python module that you are instrumenting with sys_log()
   * Check to ensure that the global sys_log() object was created successfully
-  * Clear out residual data from the global sys_log() object, just in case the AWS Lambda servcie is reusing a warm container
+  * Clear out residual data from the global sys_log() object, just in case the AWS Lambda service is reusing a warm container
   * During the execution flow of control, of the entire Python module, use global sys_log() object to submit system log messages
   * Before you exit this function (i.e., the entire module), flush all of the system log messages that have been submitted to the DynamoDB tables.  After the flush you can check the global object to detect issues that occurred during the write to DynamoDB.
 
@@ -67,13 +65,14 @@ By providing a Python module global object as the interface to the system loggin
 * The AWS Lambda service will keep the container used by an exiting function around for a limited time in hopes of reusing the container for a future call to the same function
 * A long running Python process will bring up a single global sys_log() object and reuse it in perpetuity
 
-Neither the sys_log() class nor the send_alerts() calss was designed for high-volume, closely-timed usage.  If you would like to use either class in this manner you will, at the very least, need to change sys_log.log_message() so that the time stamp uses milliseconds vs whole seconds and the time delay is in milliseconds vs a whole second.
+Neither the sys_log() class nor the send_alerts() class was designed for high-volume, closely-timed usage.  If you would like to use either class in this manner you will, at the very least, need to change sys_log.log_message() so that the time stamp uses milliseconds vs whole seconds and the time delay is in milliseconds vs a whole second.
 
 ## Set Up DynamoDB Tables
 Set up two DynamoDB tables, one for informational messages and one for error messages.  For both designate an attribute named “date” as the partition key and an attribute named “stamp_mod” as the sort key.  After data has populated the informational message table enable “Time To Live” and specify the “expiry” attribute.
 
 ## Example use of sys_log() and send_alerts()
 The following can be used as a reference for canonical use of the sys_log() and send_alerts() classes.
+
 ```
 """
 Jaye Hicks
